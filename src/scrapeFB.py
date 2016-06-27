@@ -2,18 +2,23 @@
 # -*-coding:utf-8-*-
 
 # import necessary Python libraries
-import urllib
 import simplejson
 import facebook
 import hashlib
+import sys
 import sqlite3 as lite
 from datetime import datetime
+
+if sys.version_info[0] == 3:
+    from urllib.request import urlopen
+else:
+    from urllib import urlopen
 
 
 class Scraper:
     def __init__(self, access_token, db_path, id_list):
-        """Connects to Facebook Graph API and creates an SQLite database with four tables for Posts, Comments, Likes and
-        People if not exists.
+        """Connects to Facebook Graph API and creates an SQLite database with four tables for Posts, Comments,
+        Post_likes and People if not exists.
 
         Takes three arguments:
         access_token: your own Facebook access token that you can get on https://developers.facebook.com/tools/explorer/
@@ -35,7 +40,7 @@ class Scraper:
             # create cursor to the database
             cur = con.cursor()
             self.cur = cur
-            # create tables for posts, comments, likes and people if not exists
+            # create tables for posts, comments, post likes and people if not exists
             cur.execute(
                 "CREATE TABLE IF NOT EXISTS Posts(message_id TEXT PRIMARY KEY, content TEXT, author_hash_id TEXT, "
                 "link TEXT, location TEXT, published_date TEXT, date_inserted TEXT, last_comment TEXT, "
@@ -45,10 +50,10 @@ class Scraper:
             cur.execute(
                 "CREATE TABLE IF NOT EXISTS Comments(comment_id TEXT PRIMARY KEY, message_id TEXT, "
                 "comment_content TEXT, author_hash_id TEXT, comment_date TEXT, like_count INTEGER)")
-            cur.execute("CREATE TABLE IF NOT EXISTS Likes(like_id TEXT PRIMARY KEY, author_hash_id TEXT, "
-                        "message_id TEXT)")
-            cur.execute("CREATE TABLE IF NOT EXISTS People(author_hash_id TEXT PRIMARY KEY, author_id TEXT, "
-                        "author_name TEXT)")
+            cur.execute(
+                "CREATE TABLE IF NOT EXISTS Post_likes(like_id TEXT PRIMARY KEY, author_hash_id TEXT, message_id TEXT)")
+            cur.execute(
+                "CREATE TABLE IF NOT EXISTS People(author_hash_id TEXT PRIMARY KEY, author_id TEXT, author_name TEXT)")
 
     def write_data(self, d):
         """Writes data from the given Facebook page in SQLite database separated in four tables for posts, comments,
@@ -62,7 +67,7 @@ class Scraper:
 
             author_name = message['from']['name']
             author_id = message['from']['id']
-            author_hash_id = hashlib.md5(author_id).hexdigest()
+            author_hash_id = hashlib.md5(author_id.encode('utf-8')).hexdigest()
             published_date = message['created_time']
             published_date = datetime.strptime(published_date, "%Y-%m-%dT%H:%M:%S+%f").strftime("%Y-%m-%d %H:%M:%S")
             message_type = message['type']
@@ -125,19 +130,21 @@ class Scraper:
                     comment_id = each_comment['id']
                     comment_author = each_comment['from']
                     comment_author_id = comment_author['id']
-                    comment_author_hash_id = hashlib.md5(comment_author_id).hexdigest()
+                    comment_author_hash_id = hashlib.md5(comment_author_id.encode('utf-8')).hexdigest()
                     comment_author_name = comment_author['name']
                     comment_created = each_comment['created_time']
                     comment_created = datetime.strptime(comment_created, "%Y-%m-%dT%H:%M:%S+%f").strftime(
                         "%Y-%m-%d %H:%M:%S")
                     comment_dates.append(comment_created)
-                    likes = str(each_comment['like_count'])
-                    if len(likes) < 1:
-                        likes = '0'
+                    like_count = str(each_comment['like_count'])
+                    if len(like_count) < 1:
+                        like_count = '0'
                     comments_data = (comment_id, message_id, comment_content, comment_author_hash_id, comment_created,
-                                     likes)
+                                     like_count)
                     people_data = (comment_author_hash_id, comment_author_id, comment_author_name)
                     self.cur.execute("INSERT OR IGNORE INTO Comments VALUES(?, ?, ?, ?, ?, ?)", comments_data)
+                    self.cur.execute(
+                        "UPDATE Comments SET like_count=like_count WHERE CHANGES()=0 AND comment_id=comment_id")
                     self.cur.execute("INSERT OR IGNORE INTO People VALUES(?, ?, ?)", people_data)
                     comment_count += 1
 
@@ -145,30 +152,33 @@ class Scraper:
                         next_comment_url = message['comments']['paging']['next']
                         while next_comment_url:
                             try:
-                                get_more_comment = simplejson.loads(urllib.urlopen(next_comment_url).read())
+                                with urlopen(next_comment_url) as url:
+                                    s = url.read()
+                                get_more_comment = simplejson.loads(s)
                                 for more_comments in get_more_comment['data']:
-                                    comment_content_plus = more_comments['message']
-                                    comment_id_plus = more_comments['id']
-                                    comment_author_plus = more_comments['from']
-                                    comment_author_id_plus = comment_author_plus['id']
-                                    comment_author_hash_id_plus = hashlib.md5(comment_author_id_plus).hexdigest()
-                                    comment_author_name_plus = comment_author_plus['name']
-                                    comment_created_plus = more_comments['created_time']
-                                    comment_created_plus = datetime.strptime(comment_created_plus,
-                                                                             "%Y-%m-%dT%H:%M:%S+%f").strftime(
-                                        "%Y-%m-%d %H:%M:%S")
-                                    comment_dates.append(comment_created_plus)
-                                    likes_plus = str(more_comments['like_count'])
-                                    if len(likes_plus) < 1:
-                                        likes_plus = '0'
-                                    comments_data_plus = (
-                                        comment_id_plus, message_id, comment_content_plus, comment_author_hash_id_plus,
-                                        comment_created_plus, likes_plus)
-                                    people_data_plus = (comment_author_hash_id_plus, comment_author_id_plus,
-                                                        comment_author_name_plus)
+                                    comment_content = more_comments['message']
+                                    comment_id = more_comments['id']
+                                    comment_author = more_comments['from']
+                                    comment_author_id = comment_author['id']
+                                    comment_author_hash_id = hashlib.md5(
+                                        comment_author_id.encode('utf-8')).hexdigest()
+                                    comment_author_name = comment_author['name']
+                                    comment_created = more_comments['created_time']
+                                    comment_created = datetime.strptime(
+                                        comment_created, "%Y-%m-%dT%H:%M:%S+%f").strftime("%Y-%m-%d %H:%M:%S")
+                                    comment_dates.append(comment_created)
+                                    like_count = str(more_comments['like_count'])
+                                    if len(like_count) < 1:
+                                        like_count = '0'
+                                    comments_data = (
+                                        comment_id, message_id, comment_content, comment_author_hash_id,
+                                        comment_created, like_count)
+                                    people_data = (comment_author_hash_id, comment_author_id, comment_author_name)
                                     self.cur.execute("INSERT OR IGNORE INTO Comments VALUES(?, ?, ?, ?, ?, ?)",
-                                                     comments_data_plus)
-                                    self.cur.execute("INSERT OR IGNORE INTO People VALUES(?, ?, ?)", people_data_plus)
+                                                     comments_data)
+                                    self.cur.execute("UPDATE Comments SET like_count=like_count "
+                                                     "WHERE CHANGES()=0 AND comment_id=comment_id")
+                                    self.cur.execute("INSERT OR IGNORE INTO People VALUES(?, ?, ?)", people_data)
                                     comment_count += 1
 
                             except Exception as e:
@@ -207,7 +217,9 @@ class Scraper:
                 if 'paging' in l.keys():
                     while True:
                         try:
-                            l = simplejson.loads(urllib.urlopen(l['paging']['next']).read())
+                            with urlopen(l['paging']['next']) as url:
+                                s = url.read()
+                            l = simplejson.loads(s)
                             like_count += len(l['data'])
                             for k in l['data']:
                                 likers[k['id']] = k['name']
@@ -216,12 +228,12 @@ class Scraper:
 
                 for k in likers.keys():
                     liker_id = k
-                    liker_hash_id = hashlib.md5(liker_id).hexdigest()
+                    liker_hash_id = hashlib.md5(liker_id.encode('utf-8')).hexdigest()
                     liker_name = likers[k]
                     like_id = message_id + '_' + liker_hash_id
                     likes_data = (like_id, liker_hash_id, message_id)
                     people_like_data = (liker_hash_id, liker_id, liker_name)
-                    self.cur.execute("INSERT OR IGNORE INTO Likes VALUES(?, ?, ?)", likes_data)
+                    self.cur.execute("INSERT OR IGNORE INTO Post_likes VALUES(?, ?, ?)", likes_data)
                     self.cur.execute("INSERT OR IGNORE INTO People VALUES(?, ?, ?)", people_like_data)
 
             last_comment = max(comment_dates)
@@ -270,7 +282,9 @@ class Scraper:
 
                     try:
                         # convert json into nested dicts and lists
-                        d = simplejson.loads(urllib.urlopen(next_page_url).read())
+                        with urlopen(next_page_url) as url:
+                            s = url.read()
+                        d = simplejson.loads(s)
                     except Exception as e:
                         print("Error reading id %s, exception: %s" % (feed, e))
                         continue
@@ -304,8 +318,9 @@ if __name__ == "__main__":
     import sys
 
     parser = argparse.ArgumentParser()
-    parser.add_argument('-a', '--access_token',
-                        help='you can get your own Facebook access token on https://developers.facebook.com/tools/explorer/')
+    parser.add_argument(
+        '-a', '--access_token',
+        help='you can get your own Facebook access token on https://developers.facebook.com/tools/explorer/')
     parser.add_argument('-d', '--db_path', help='the path of the SQLite database where you want to store the data')
     parser.add_argument('-i', '--id_list', nargs='+', help="the ID's of the Facebook pages you want to scrape")
     args = parser.parse_args()

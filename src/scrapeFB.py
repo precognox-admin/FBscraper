@@ -29,7 +29,7 @@ class Scraper:
         self.db_path = db_path
         self.id_list = id_list
 
-        g = facebook.GraphAPI(self.access_token)
+        g = facebook.GraphAPI(self.access_token, version='2.3')
         self.g = g
 
         # connect to database
@@ -46,7 +46,8 @@ class Scraper:
                 "link TEXT, location TEXT, published_date TEXT, date_inserted TEXT, last_comment TEXT, "
                 "status_id TEXT, status_link TEXT, message_type TEXT, status_type TEXT, video_source TEXT, "
                 "picture_link TEXT, link_name TEXT, link_caption TEXT, link_description TEXT, num_mentions INTEGER, "
-                "mentions TEXT, like_count INTEGER, comment_count INTEGER, share_count INTEGER)")
+                "mentions TEXT, like_count INTEGER, comment_count INTEGER, share_count INTEGER, "
+                "love_count INTEGER, wow_count INTEGER, haha_count INTEGER, sad_count INTEGER, angry_count INTEGER)")
             cur.execute(
                 "CREATE TABLE IF NOT EXISTS Comments(comment_id TEXT PRIMARY KEY, message_id TEXT, "
                 "comment_content TEXT, author_hash_id TEXT, comment_date TEXT, like_count INTEGER)")
@@ -54,6 +55,28 @@ class Scraper:
                 "CREATE TABLE IF NOT EXISTS Post_likes(like_id TEXT PRIMARY KEY, author_hash_id TEXT, message_id TEXT)")
             cur.execute(
                 "CREATE TABLE IF NOT EXISTS People(author_hash_id TEXT PRIMARY KEY, author_id TEXT, author_name TEXT)")
+
+    def get_reactions(self, message_id, access_token):
+        """Gets reactions for a post."""
+
+        base = "https://graph.facebook.com/v2.6"
+        node = "/%s" % message_id
+        reactions = "/?fields=" \
+                    "reactions.type(LIKE).limit(0).summary(total_count).as(like)," \
+                    "reactions.type(LOVE).limit(0).summary(total_count).as(love)," \
+                    "reactions.type(WOW).limit(0).summary(total_count).as(wow)," \
+                    "reactions.type(HAHA).limit(0).summary(total_count).as(haha)," \
+                    "reactions.type(SAD).limit(0).summary(total_count).as(sad)," \
+                    "reactions.type(ANGRY).limit(0).summary(total_count).as(angry)"
+        parameters = "&access_token=%s" % access_token
+        url = base + node + reactions + parameters
+
+        # retrieve data
+        with urlopen(url) as url:
+            read_url = url.read()
+        data = simplejson.loads(read_url)
+
+        return data
 
     def write_data(self, d):
         """Writes data from the given Facebook page in SQLite database separated in four tables for posts, comments,
@@ -76,51 +99,33 @@ class Scraper:
             status_id = message_id.split('_')[1]
             status_link = 'https://www.facebook.com/%s/posts/%s' % (org_id, status_id)
 
-            if 'place' in message:
-                location = str(message['place'])
-            else:
-                location = ''
+            location = '' if 'place' not in message else str(message['place'])
+            link = '' if 'link' not in message else str(message['link'])
+            link_name = '' if 'name' not in message else message['name']
+            link_caption = '' if 'caption' not in message else message['caption']
+            link_description = '' if 'description' not in message else message['description']
+            content = '' if 'message' not in message else message['message'].replace('\n', ' ')
+            status_type = '' if 'status_type' not in message else message['status_type']
+            picture_link = '' if 'picture' not in message else message['picture']
+            video_source = '' if 'source' not in message else message['source']
+            share_count = 0 if 'shares' not in message else message['shares']['count']
 
-            if 'link' in message:
-                link = message['link']
-            else:
-                link = ''
+            reaction_data = self.get_reactions(message_id=message_id, access_token=self.access_token) \
+                if published_date > '2016-02-24 00:00:00' else {}
+            love_count = 0 if 'love' not in reaction_data else reaction_data['love']['summary']['total_count']
+            wow_count = 0 if 'wow' not in reaction_data else reaction_data['wow']['summary']['total_count']
+            haha_count = 0 if 'haha' not in reaction_data else reaction_data['haha']['summary']['total_count']
+            sad_count = 0 if 'sad' not in reaction_data else reaction_data['sad']['summary']['total_count']
+            angry_count = 0 if 'angry' not in reaction_data else reaction_data['angry']['summary']['total_count']
+            reaction_like_count = 0 if 'like' not in reaction_data else reaction_data['like']['summary']['total_count']
 
-            if 'name' in message:
-                link_name = message['name']
+            num_mentions = 0
+            if 'to' in message:
+                num_mentions = len(message['to']['data'])
+                mentions_list = '' if num_mentions != 0 else [i['name'] for i in message['to']['data'] if 'name' in i]
+                mentions = ', '.join(mentions_list)
             else:
-                link_name = ''
-
-            if 'caption' in message:
-                link_caption = message['caption']
-            else:
-                link_caption = ''
-
-            if 'description' in message:
-                link_description = message['description']
-            else:
-                link_description = ''
-
-            if 'message' in message:
-                content = message['message']
-                content = content.replace('\n', '')
-            else:
-                content = ''
-
-            if 'status_type' in message:
-                status_type = message['status_type']
-            else:
-                status_type = ''
-
-            if 'picture' in message:
-                picture_link = message['picture']
-            else:
-                picture_link = ''
-
-            if 'source' in message:
-                video_source = message['source']
-            else:
-                video_source = ''
+                mentions = ''
 
             comment_count = 0
             comment_dates = [published_date]
@@ -153,8 +158,8 @@ class Scraper:
                         while next_comment_url:
                             try:
                                 with urlopen(next_comment_url) as url:
-                                    s = url.read()
-                                get_more_comment = simplejson.loads(s)
+                                    read_url = url.read()
+                                get_more_comment = simplejson.loads(read_url)
                                 for more_comments in get_more_comment['data']:
                                     comment_content = more_comments['message']
                                     comment_id = more_comments['id']
@@ -190,22 +195,7 @@ class Scraper:
                                     next_comment_url = get_more_comment['paging']['next']
                                 else:
                                     break
-
-            num_mentions = 0
-            if 'to' in message:
-                num_mentions = len(message['to']['data'])
-                if num_mentions != 0:
-                    mentions_list = [i['name'] for i in message['to']['data'] if 'name' in i]
-                else:
-                    mentions_list = ''
-                mentions = ', '.join(mentions_list)
-            else:
-                mentions = ''
-
-            if 'shares' in message:
-                share_count = message['shares']['count']
-            else:
-                share_count = 0
+            last_comment = max(comment_dates)
 
             like_count = 0
             likers = {}
@@ -218,8 +208,8 @@ class Scraper:
                     while True:
                         try:
                             with urlopen(l['paging']['next']) as url:
-                                s = url.read()
-                            l = simplejson.loads(s)
+                                read_url = url.read()
+                            l = simplejson.loads(read_url)
                             like_count += len(l['data'])
                             for k in l['data']:
                                 likers[k['id']] = k['name']
@@ -236,14 +226,17 @@ class Scraper:
                     self.cur.execute("INSERT OR IGNORE INTO Post_likes VALUES(?, ?, ?)", likes_data)
                     self.cur.execute("INSERT OR IGNORE INTO People VALUES(?, ?, ?)", people_like_data)
 
-            last_comment = max(comment_dates)
+            like_count = like_count if published_date < '2016-02-24 00:00:00' else reaction_like_count
+
             post_data = (
                 message_id, content, author_hash_id, link, location, published_date, date_inserted, last_comment,
                 status_id, status_link, message_type, status_type, video_source, picture_link, link_name, link_caption,
-                link_description, num_mentions, mentions, like_count, comment_count, share_count)
+                link_description, num_mentions, mentions, like_count, comment_count, share_count, love_count,
+                wow_count, haha_count, sad_count, angry_count)
             people_org_data = (author_hash_id, author_id, author_name)
             self.cur.execute(
-                "INSERT OR IGNORE INTO Posts VALUES(?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)",
+                "INSERT OR IGNORE INTO Posts VALUES(?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, "
+                "?, ?, ?, ?, ?)",
                 post_data)
             self.cur.execute(
                 "UPDATE Posts SET last_comment=last_comment, num_mentions=num_mentions, mentions=mentions, "
@@ -283,8 +276,8 @@ class Scraper:
                     try:
                         # convert json into nested dicts and lists
                         with urlopen(next_page_url) as url:
-                            s = url.read()
-                        d = simplejson.loads(s)
+                            read_url = url.read()
+                        d = simplejson.loads(read_url)
                     except Exception as e:
                         print("Error reading id %s, exception: %s" % (feed, e))
                         continue
@@ -301,11 +294,9 @@ class Scraper:
                         else:
                             break
 
-            except Exception as e:
+            except:
                 if self.no_messages > 0:
-                    print(
-                        "There aren't any other pages. Scraping of feed id %s is done! "
-                        "There were %s messages to scrape." % (feed, self.no_messages))
+                    print("There aren't any other pages. Scraping of feed id %s is done! " % feed)
                 else:
                     print("There is nothing to scrape. Perhaps the id you provided is a personal page.")
                 continue

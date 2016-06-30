@@ -1,19 +1,15 @@
 ### Scrape sample databases
 
-# cd to .../FBscraper/src
+## before running
+# change directory to FBscraper/src
+# change access token to your own (https://developers.facebook.com/tools/explorer/)
+access_token="EAACEdEose0cBAO5BprvNk6JLcZBPkR9VreibSZBEZCZCDyKBcXdH9DkDJsx7c5tflMGx2Q698QZCfZCqih3WMS9jFjf0nG5Oy6mVzZABsQ167mC19ow0gJdK1GFIpOJGKoXUCiIdhZBWf2579fVf8JK8jZCJ34DxZB4AynQX29G1Td2wZDZD"
+# change ID's if you want to scrape other Facebook pages
+ID_list="127167520968693 76748198685 513643295475511"
 
-## Böbe mozgóképei
-# change access token to your own (https://developers.facebook.com/tools/explorer/) before running
-python scrapeFB.py -a EAACEdEose0cBAOv93ZB6G70J8v9icim0bXse3BDNRZB1zzSTt8LaPxzEFhDBn2hKW0TU8H4rqKBP9B4yJDUk5WtSxNiH2fEeb5gF2weoZAYSiguXqGGZAnXwvsJgeRuAcHzy5lnZAaEXbpdSAbeMZA9tas9iHjVy6TTiXmPmfZBWAZDZD -d ../data/bobe.sqlite -i 127167520968693
+## scrape sample Facebook pages to separate SQlite databases
+for id in $ID_list
+do
+	python scrapeFB.py -a $access_token -d ../data/$id.sqlite -i $id
+done
 
-## Budapest Pride
-# change access token to your own (https://developers.facebook.com/tools/explorer/) before running
-python scrapeFB.py -a EAACEdEose0cBAOv93ZB6G70J8v9icim0bXse3BDNRZB1zzSTt8LaPxzEFhDBn2hKW0TU8H4rqKBP9B4yJDUk5WtSxNiH2fEeb5gF2weoZAYSiguXqGGZAnXwvsJgeRuAcHzy5lnZAaEXbpdSAbeMZA9tas9iHjVy6TTiXmPmfZBWAZDZD -d ../data/budapest_pride.sqlite -i 76748198685
-
-## Budapest Pride 2016
-# change access token to your own (https://developers.facebook.com/tools/explorer/) before running
-python scrapeFB.py -a EAACEdEose0cBAOv93ZB6G70J8v9icim0bXse3BDNRZB1zzSTt8LaPxzEFhDBn2hKW0TU8H4rqKBP9B4yJDUk5WtSxNiH2fEeb5gF2weoZAYSiguXqGGZAnXwvsJgeRuAcHzy5lnZAaEXbpdSAbeMZA9tas9iHjVy6TTiXmPmfZBWAZDZD -d ../data/budapest_pride_2016.sqlite -i 285447861787749
-
-## Tanítanék 2016.03.15.
-# change access token to your own (https://developers.facebook.com/tools/explorer/) before running
-python scrapeFB.py -a EAACEdEose0cBAOv93ZB6G70J8v9icim0bXse3BDNRZB1zzSTt8LaPxzEFhDBn2hKW0TU8H4rqKBP9B4yJDUk5WtSxNiH2fEeb5gF2weoZAYSiguXqGGZAnXwvsJgeRuAcHzy5lnZAaEXbpdSAbeMZA9tas9iHjVy6TTiXmPmfZBWAZDZD -d ../data/tanitanek_20160315.sqlite -i 513643295475511

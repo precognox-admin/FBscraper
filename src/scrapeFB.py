@@ -311,14 +311,14 @@ if __name__ == "__main__":
     parser = argparse.ArgumentParser()
     parser.add_argument(
         '-a', '--access_token',
-        help='you can get your own Facebook access token on https://developers.facebook.com/tools/explorer/')
-    parser.add_argument('-d', '--db_path', help='the path of the SQLite database where you want to store the data')
+        help='you can get your own Facebook access token at https://developers.facebook.com/tools/explorer/')
+    parser.add_argument('-d', '--db_path', help='the path of the SQLite database in which you want to store the data')
     parser.add_argument('-i', '--id_list', nargs='+', help="the ID's of the Facebook pages you want to scrape")
     args = parser.parse_args()
 
     if len(sys.argv) == 1:
         args.access_token = input('Please type your own Facebook access token: ')
-        args.db_path = input('Please type the path of the SQLite database where you want to store the data: ')
+        args.db_path = input('Please type the path of the SQLite database in which you want to store the data: ')
         args.id_list = input("Please type the ID's of the Facebook pages you want to scrape: ")
 
     s = Scraper(args.access_token, args.db_path, args.id_list)

@@ -10,6 +10,6 @@ ID_list="127167520968693 76748198685 513643295475511"
 ## scrape sample Facebook pages to separate SQlite databases
 for id in $ID_list
 do
-	python scrapeFB.py -a $access_token -d ../data/$id.sqlite -i $id
+	python scrapeFB.py -a $access_token -d ../example/$id.sqlite -i $id
 done
 

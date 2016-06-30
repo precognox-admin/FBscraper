@@ -42,25 +42,25 @@ class Scraper:
             self.cur = cur
             # create tables for posts, comments, post likes and people if not exists
             cur.execute(
-                "CREATE TABLE IF NOT EXISTS Posts(message_id TEXT PRIMARY KEY, content TEXT, author_hash_id TEXT, "
-                "link TEXT, location TEXT, published_date TEXT, date_inserted TEXT, last_comment TEXT, "
-                "status_id TEXT, status_link TEXT, message_type TEXT, status_type TEXT, video_source TEXT, "
-                "picture_link TEXT, link_name TEXT, link_caption TEXT, link_description TEXT, num_mentions INTEGER, "
-                "mentions TEXT, like_count INTEGER, comment_count INTEGER, share_count INTEGER, "
-                "love_count INTEGER, wow_count INTEGER, haha_count INTEGER, sad_count INTEGER, angry_count INTEGER)")
+                "CREATE TABLE IF NOT EXISTS Posts(post_id TEXT PRIMARY KEY, status_id TEXT, content TEXT, "
+                "person_hash_id TEXT, published_date TEXT, last_comment_date TEXT, post_type TEXT, status_type TEXT, "
+                "post_link TEXT, link TEXT, video_link TEXT, picture_link TEXT, link_name TEXT, link_caption TEXT, "
+                "link_description TEXT, comment_count INTEGER, share_count INTEGER, like_count INTEGER, "
+                "love_count INTEGER, wow_count INTEGER, haha_count INTEGER, sad_count INTEGER, angry_count INTEGER, "
+                "mentions_count INTEGER, mentions TEXT, location TEXT, date_inserted TEXT)")
             cur.execute(
-                "CREATE TABLE IF NOT EXISTS Comments(comment_id TEXT PRIMARY KEY, message_id TEXT, "
-                "comment_content TEXT, author_hash_id TEXT, comment_date TEXT, like_count INTEGER)")
+                "CREATE TABLE IF NOT EXISTS Comments(comment_id TEXT PRIMARY KEY, person_hash_id TEXT, post_id TEXT, "
+                "comment_content TEXT, comment_date TEXT, like_count INTEGER)")
             cur.execute(
-                "CREATE TABLE IF NOT EXISTS Post_likes(like_id TEXT PRIMARY KEY, author_hash_id TEXT, message_id TEXT)")
+                "CREATE TABLE IF NOT EXISTS Post_likes(like_id TEXT PRIMARY KEY, person_hash_id TEXT, post_id TEXT)")
             cur.execute(
-                "CREATE TABLE IF NOT EXISTS People(author_hash_id TEXT PRIMARY KEY, author_id TEXT, author_name TEXT)")
+                "CREATE TABLE IF NOT EXISTS People(person_hash_id TEXT PRIMARY KEY, person_id TEXT, person_name TEXT)")
 
-    def get_reactions(self, message_id, access_token):
+    def get_reactions(self, post_id, access_token):
         """Gets reactions for a post."""
 
         base = "https://graph.facebook.com/v2.6"
-        node = "/%s" % message_id
+        node = "/%s" % post_id
         reactions = "/?fields=" \
                     "reactions.type(LIKE).limit(0).summary(total_count).as(like)," \
                     "reactions.type(LOVE).limit(0).summary(total_count).as(love)," \
@@ -88,16 +88,16 @@ class Scraper:
 
         for message in messages:
 
-            author_name = message['from']['name']
-            author_id = message['from']['id']
-            author_hash_id = hashlib.md5(author_id.encode('utf-8')).hexdigest()
+            person_name = message['from']['name']
+            person_id = message['from']['id']
+            person_hash_id = hashlib.md5(person_id.encode('utf-8')).hexdigest()
             published_date = message['created_time']
             published_date = datetime.strptime(published_date, "%Y-%m-%dT%H:%M:%S+%f").strftime("%Y-%m-%d %H:%M:%S")
-            message_type = message['type']
-            message_id = message['id']
-            org_id = message_id.split('_')[0]
-            status_id = message_id.split('_')[1]
-            status_link = 'https://www.facebook.com/%s/posts/%s' % (org_id, status_id)
+            post_type = message['type']
+            post_id = message['id']
+            org_id = post_id.split('_')[0]
+            status_id = post_id.split('_')[1]
+            post_link = 'https://www.facebook.com/%s/posts/%s' % (org_id, status_id)
 
             location = '' if 'place' not in message else str(message['place'])
             link = '' if 'link' not in message else str(message['link'])
@@ -107,10 +107,10 @@ class Scraper:
             content = '' if 'message' not in message else message['message'].replace('\n', ' ')
             status_type = '' if 'status_type' not in message else message['status_type']
             picture_link = '' if 'picture' not in message else message['picture']
-            video_source = '' if 'source' not in message else message['source']
+            video_link = '' if 'source' not in message else message['source']
             share_count = 0 if 'shares' not in message else message['shares']['count']
 
-            reaction_data = self.get_reactions(message_id=message_id, access_token=self.access_token) \
+            reaction_data = self.get_reactions(post_id=post_id, access_token=self.access_token) \
                 if published_date > '2016-02-24 00:00:00' else {}
             love_count = 0 if 'love' not in reaction_data else reaction_data['love']['summary']['total_count']
             wow_count = 0 if 'wow' not in reaction_data else reaction_data['wow']['summary']['total_count']
@@ -119,10 +119,10 @@ class Scraper:
             angry_count = 0 if 'angry' not in reaction_data else reaction_data['angry']['summary']['total_count']
             reaction_like_count = 0 if 'like' not in reaction_data else reaction_data['like']['summary']['total_count']
 
-            num_mentions = 0
+            mentions_count = 0
             if 'to' in message:
-                num_mentions = len(message['to']['data'])
-                mentions_list = '' if num_mentions != 0 else [i['name'] for i in message['to']['data'] if 'name' in i]
+                mentions_count = len(message['to']['data'])
+                mentions_list = '' if mentions_count != 0 else [i['name'] for i in message['to']['data'] if 'name' in i]
                 mentions = ', '.join(mentions_list)
             else:
                 mentions = ''
@@ -134,9 +134,9 @@ class Scraper:
                     comment_content = each_comment['message']
                     comment_id = each_comment['id']
                     comment_author = each_comment['from']
-                    comment_author_id = comment_author['id']
-                    comment_author_hash_id = hashlib.md5(comment_author_id.encode('utf-8')).hexdigest()
-                    comment_author_name = comment_author['name']
+                    comment_person_id = comment_author['id']
+                    comment_person_hash_id = hashlib.md5(comment_person_id.encode('utf-8')).hexdigest()
+                    comment_person_name = comment_author['name']
                     comment_created = each_comment['created_time']
                     comment_created = datetime.strptime(comment_created, "%Y-%m-%dT%H:%M:%S+%f").strftime(
                         "%Y-%m-%d %H:%M:%S")
@@ -144,9 +144,9 @@ class Scraper:
                     like_count = str(each_comment['like_count'])
                     if len(like_count) < 1:
                         like_count = '0'
-                    comments_data = (comment_id, message_id, comment_content, comment_author_hash_id, comment_created,
+                    comments_data = (comment_id, comment_person_hash_id, post_id, comment_content, comment_created,
                                      like_count)
-                    people_data = (comment_author_hash_id, comment_author_id, comment_author_name)
+                    people_data = (comment_person_hash_id, comment_person_id, comment_person_name)
                     self.cur.execute("INSERT OR IGNORE INTO Comments VALUES(?, ?, ?, ?, ?, ?)", comments_data)
                     self.cur.execute(
                         "UPDATE Comments SET like_count=like_count WHERE CHANGES()=0 AND comment_id=comment_id")
@@ -164,10 +164,10 @@ class Scraper:
                                     comment_content = more_comments['message']
                                     comment_id = more_comments['id']
                                     comment_author = more_comments['from']
-                                    comment_author_id = comment_author['id']
-                                    comment_author_hash_id = hashlib.md5(
-                                        comment_author_id.encode('utf-8')).hexdigest()
-                                    comment_author_name = comment_author['name']
+                                    comment_person_id = comment_author['id']
+                                    comment_person_hash_id = hashlib.md5(
+                                        comment_person_id.encode('utf-8')).hexdigest()
+                                    comment_person_name = comment_author['name']
                                     comment_created = more_comments['created_time']
                                     comment_created = datetime.strptime(
                                         comment_created, "%Y-%m-%dT%H:%M:%S+%f").strftime("%Y-%m-%d %H:%M:%S")
@@ -176,9 +176,9 @@ class Scraper:
                                     if len(like_count) < 1:
                                         like_count = '0'
                                     comments_data = (
-                                        comment_id, message_id, comment_content, comment_author_hash_id,
+                                        comment_id, comment_person_hash_id, post_id, comment_content,
                                         comment_created, like_count)
-                                    people_data = (comment_author_hash_id, comment_author_id, comment_author_name)
+                                    people_data = (comment_person_hash_id, comment_person_id, comment_person_name)
                                     self.cur.execute("INSERT OR IGNORE INTO Comments VALUES(?, ?, ?, ?, ?, ?)",
                                                      comments_data)
                                     self.cur.execute("UPDATE Comments SET like_count=like_count "
@@ -195,7 +195,7 @@ class Scraper:
                                     next_comment_url = get_more_comment['paging']['next']
                                 else:
                                     break
-            last_comment = max(comment_dates)
+            last_comment_date = max(comment_dates)
 
             like_count = 0
             likers = {}
@@ -220,8 +220,8 @@ class Scraper:
                     liker_id = k
                     liker_hash_id = hashlib.md5(liker_id.encode('utf-8')).hexdigest()
                     liker_name = likers[k]
-                    like_id = message_id + '_' + liker_hash_id
-                    likes_data = (like_id, liker_hash_id, message_id)
+                    like_id = post_id + '_' + liker_hash_id
+                    likes_data = (like_id, liker_hash_id, post_id)
                     people_like_data = (liker_hash_id, liker_id, liker_name)
                     self.cur.execute("INSERT OR IGNORE INTO Post_likes VALUES(?, ?, ?)", likes_data)
                     self.cur.execute("INSERT OR IGNORE INTO People VALUES(?, ?, ?)", people_like_data)
@@ -229,19 +229,19 @@ class Scraper:
             like_count = like_count if published_date < '2016-02-24 00:00:00' else reaction_like_count
 
             post_data = (
-                message_id, content, author_hash_id, link, location, published_date, date_inserted, last_comment,
-                status_id, status_link, message_type, status_type, video_source, picture_link, link_name, link_caption,
-                link_description, num_mentions, mentions, like_count, comment_count, share_count, love_count,
-                wow_count, haha_count, sad_count, angry_count)
-            people_org_data = (author_hash_id, author_id, author_name)
+                post_id, status_id, content, person_hash_id, published_date, last_comment_date, post_type, status_type,
+                post_link, link, video_link, picture_link, link_name, link_caption, link_description, comment_count,
+                share_count, like_count, love_count, wow_count, haha_count, sad_count, angry_count, mentions,
+                mentions_count, location, date_inserted)
+            people_org_data = (person_hash_id, person_id, person_name)
             self.cur.execute(
                 "INSERT OR IGNORE INTO Posts VALUES(?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, "
                 "?, ?, ?, ?, ?)",
                 post_data)
             self.cur.execute(
-                "UPDATE Posts SET last_comment=last_comment, num_mentions=num_mentions, mentions=mentions, "
-                "like_count=like_count, comment_count=comment_count, "
-                "share_count=share_count WHERE CHANGES()=0 AND message_id=message_id")
+                "UPDATE Posts SET last_comment_date=last_comment_date, mentions_count=mentions_count, "
+                "mentions=mentions, like_count=like_count, comment_count=comment_count, "
+                "share_count=share_count WHERE CHANGES()=0 AND post_id=post_id")
             self.cur.execute("INSERT OR IGNORE INTO People VALUES(?, ?, ?)", people_org_data)
             self.con.commit()
 
@@ -283,7 +283,7 @@ class Scraper:
                         continue
 
                     if len(d['data']) == 0:
-                        print("There aren't any other messages.")
+                        print("There aren't any other posts. Scraping of feed id %s is done! " % feed)
                         break
 
                     self.write_data(d)

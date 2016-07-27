@@ -47,7 +47,7 @@ To run the scraper you should provide three things to the script on the command 
     
     * Or just use one from the many online ID founder like [this](http://www.findmyfbid.com/).
 
-Note that the scraper does not process personal pages, you can only scrape public information from public pages. If you use the scraper, please read more on Facebook's data policy and act according to it. Also, please follow the basic data protection guidelines! https://www.facebook.com/full_data_use_policy, https://ico.org.uk/for-organisations/guide-to-data-protection/
+Note that the scraper does not process personal pages, you can only scrape public information from public pages. If you use the scraper, please read more on Facebook's data policy and act according to it. Also, please follow the basic data protection guidelines! Read [this](https://www.facebook.com/full_data_use_policy) or [this](https://ico.org.uk/for-organisations/guide-to-data-protection/).
 
 
 ### Windows

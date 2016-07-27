@@ -93,7 +93,7 @@ After processing you can find the data in the given SQLite database file. The da
 
 The database scheme looks following:
 
-![ ](https://raw.github.com/precognox-admin/FBscraper/img/scheme.png "Database scheme")
+![ ](https://raw.githubusercontent.com/precognox-admin/FBscraper/master/img/scheme.png "Database scheme")
 
 Note that published_date and last_comment_date are in GMT.
 
@@ -114,5 +114,7 @@ You can reach us at keresovilag(at)precognox.com
 
 ### Team
 Kitti Balogh ([@kttblgh](https://twitter.com/kttblgh))
+
 Nora Fulop
+
 Zoltan Varju ([@zoltanvarju](https://twitter.com/zoltanvarju))
